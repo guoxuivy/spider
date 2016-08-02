@@ -5,7 +5,6 @@ import (
 	//"fmt"
 	"log"
 	//"net/url"
-	"regexp"
 	"strconv"
 	//"time"
 )
@@ -53,57 +52,16 @@ func NewSpider(rule map[string]interface{}) *Spider {
 	return obj
 }
 
-/**
- * 更新一个公司的客户状态 (PT) 考虑新建数据库连接 提高效率
- * @param  {[type]} db      *sql.DB       [description]
- * @param  {[type]} c       chan          int           [description]
- * @param  {[type]} comp_id int           [公司ID]
- * @param  {[type]} num int           	  [有效期天数]
- * @return {[type]}         			  [description]
- */
-func (obj *Spider) clean(body string) (str string) {
-	src := string(body)
-	//将HTML标签全转换成小写
-	// re, _ := regexp.Compile("\\<[\\S\\s]+?\\>")
-	// src = re.ReplaceAllStringFunc(src, strings.ToLower)
-
-	//去除STYLE
-	re, _ := regexp.Compile("\\<style[\\S\\s]+?\\</style\\>")
-	src = re.ReplaceAllString(src, "")
-
-	//去除SCRIPT
-	re, _ = regexp.Compile("<script[\\S\\s]+?</script>")
-	src = re.ReplaceAllString(src, "")
-
-	//去除所有尖括号内的HTML代码，并换成换行符
-	re, _ = regexp.Compile("</?[^/?(img)|(br)][^><]*>")
-	src = re.ReplaceAllString(src, "")
-
-	//img 处理
-	re, _ = regexp.Compile(`w=`)
-	src = re.ReplaceAllString(src, "width=")
-
-	re, _ = regexp.Compile(`src="data`)
-	src = re.ReplaceAllString(src, `src="http://www.gai001.com/data`)
-
-	//去除连续的换行符
-	re, _ = regexp.Compile(`[\s]{2,}`)
-	src = re.ReplaceAllString(src, "\n")
-
-	return src
-}
-
 //一个列表页处理
 func (obj *Spider) do_list(url string) {
 	index := obj.grep.Detail_url(url)
-	log.Println(index)
-	// db := Mydb()
-	// defer db.Close()
-	// for _, page := range index {
-	// 	body := obj.do_detail(page.url)
-	// 	body := obj.grep.Detail_content(url)
-	// 	InCar(db, page.title, body, obj.rule["cate"])
-	// }
+	//log.Println(index)
+	db := Mydb()
+	defer db.Close()
+	for _, page := range index {
+		body := obj.grep.Detail_content(page.url)
+		InCar(db, page.title, body, obj.rule["cate"])
+	}
 }
 
 /**

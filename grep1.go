@@ -52,6 +52,46 @@ func (obj *Grep1) Detail_content(url string) string {
 	content.Find("p").Last().Remove()
 
 	body, _ := content.Html()
-	//body = obj.clean(body)
+	body = obj.clean(body)
 	return body
+}
+
+/**
+ * 更新一个公司的客户状态 (PT) 考虑新建数据库连接 提高效率
+ * @param  {[type]} db      *sql.DB       [description]
+ * @param  {[type]} c       chan          int           [description]
+ * @param  {[type]} comp_id int           [公司ID]
+ * @param  {[type]} num int               [有效期天数]
+ * @return {[type]}                       [description]
+ */
+func (obj *Grep1) clean(body string) (str string) {
+	src := string(body)
+	//将HTML标签全转换成小写
+	// re, _ := regexp.Compile("\\<[\\S\\s]+?\\>")
+	// src = re.ReplaceAllStringFunc(src, strings.ToLower)
+
+	//去除STYLE
+	re, _ := regexp.Compile("\\<style[\\S\\s]+?\\</style\\>")
+	src = re.ReplaceAllString(src, "")
+
+	//去除SCRIPT
+	re, _ = regexp.Compile("<script[\\S\\s]+?</script>")
+	src = re.ReplaceAllString(src, "")
+
+	//去除所有尖括号内的HTML代码，并换成换行符
+	re, _ = regexp.Compile("</?[^/?(img)|(br)][^><]*>")
+	src = re.ReplaceAllString(src, "")
+
+	//img 处理
+	re, _ = regexp.Compile(`w=`)
+	src = re.ReplaceAllString(src, "width=")
+
+	re, _ = regexp.Compile(`src="data`)
+	src = re.ReplaceAllString(src, `src="http://www.gai001.com/data`)
+
+	//去除连续的换行符
+	re, _ = regexp.Compile(`[\s]{2,}`)
+	src = re.ReplaceAllString(src, "\n")
+
+	return src
 }
