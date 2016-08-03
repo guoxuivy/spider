@@ -12,7 +12,7 @@ type Grep2 struct {
 
 //获取带分页的url
 func (obj *Grep2) Page_url(url string, page string) string {
-	re, _ := regexp.Compile(`_[\d]`)
+	re := regexp.MustCompile(`_[\d]`)
 	url = re.ReplaceAllString(url, "_"+page)
 	return url
 }

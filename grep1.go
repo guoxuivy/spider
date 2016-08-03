@@ -12,7 +12,7 @@ type Grep1 struct {
 
 //获取带分页的url
 func (obj *Grep1) Page_url(url string, page string) string {
-	re, _ := regexp.Compile(`page=[\d]`)
+	re := regexp.MustCompile(`page=[\d]`)
 	url = re.ReplaceAllString(url, "page="+page)
 	return url
 }
@@ -57,16 +57,12 @@ func (obj *Grep1) Detail_content(url string) string {
 }
 
 /**
- * 更新一个公司的客户状态 (PT) 考虑新建数据库连接 提高效率
- * @param  {[type]} db      *sql.DB       [description]
- * @param  {[type]} c       chan          int           [description]
- * @param  {[type]} comp_id int           [公司ID]
- * @param  {[type]} num int               [有效期天数]
- * @return {[type]}                       [description]
+ * 整理干净
  */
 func (obj *Grep1) clean(body string) (str string) {
 	src := string(body)
 
+	//仅保留 img\br\p标签
 	src = CleanBody(src)
 
 	//img 处理

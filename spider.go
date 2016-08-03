@@ -2,11 +2,8 @@
 package spider
 
 import (
-	//"fmt"
 	"log"
-	//"net/url"
 	"strconv"
-	//"time"
 )
 
 type IGrep interface {
