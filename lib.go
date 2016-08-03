@@ -5,6 +5,8 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"log"
 	"os"
+	"regexp"
+	"strings"
 	"time"
 )
 
@@ -54,4 +56,23 @@ func WriteResult(tag string, data string) {
 	defer fl.Close()
 	fl.WriteString(data)
 	fl.WriteString("\n")
+}
+
+func CleanBody(src string) string {
+	//src := "<div style='eee'><script>style</script>ad<br/>fa<img src='fadfa'>df<p>wosp</p></div>"
+	//将HTML标签全转换成小写
+	re := regexp.MustCompile(`<[\S\s]+?\>`)
+	src = re.ReplaceAllStringFunc(src, strings.ToLower)
+	//去除STYLE
+	re = regexp.MustCompile(`<style[\S\s]+?</style>`)
+	src = re.ReplaceAllString(src, "")
+	//去除SCRIPT
+	re = regexp.MustCompile(`<script[\S\s]+?</script>`)
+	src = re.ReplaceAllString(src, "")
+
+	re = regexp.MustCompile(`</?[^/?(img)|(br)|(p)][^><]*>`)
+	src = re.ReplaceAllString(src, "")
+	//fmt.Printf("%q\n", re.FindAllString(src, -1))
+	//fmt.Println(src)
+	return src
 }

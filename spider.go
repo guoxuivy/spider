@@ -76,6 +76,7 @@ func (obj *Spider) Run(c chan string) {
 		page = i + 1
 		url := obj.grep.Page_url(obj.rule["list_url"], strconv.Itoa(page))
 		obj.do_list(url)
+		//log.Println(url)
 	}
 	c <- obj.rule["list_url"] + " done:" + strconv.Itoa(page)
 }

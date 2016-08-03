@@ -66,24 +66,11 @@ func (obj *Grep1) Detail_content(url string) string {
  */
 func (obj *Grep1) clean(body string) (str string) {
 	src := string(body)
-	//将HTML标签全转换成小写
-	// re, _ := regexp.Compile("\\<[\\S\\s]+?\\>")
-	// src = re.ReplaceAllStringFunc(src, strings.ToLower)
 
-	//去除STYLE
-	re, _ := regexp.Compile("\\<style[\\S\\s]+?\\</style\\>")
-	src = re.ReplaceAllString(src, "")
-
-	//去除SCRIPT
-	re, _ = regexp.Compile("<script[\\S\\s]+?</script>")
-	src = re.ReplaceAllString(src, "")
-
-	//去除所有尖括号内的HTML代码，并换成换行符
-	re, _ = regexp.Compile("</?[^/?(img)|(br)][^><]*>")
-	src = re.ReplaceAllString(src, "")
+	src = CleanBody(src)
 
 	//img 处理
-	re, _ = regexp.Compile(`w=`)
+	re := regexp.MustCompile(`w=`)
 	src = re.ReplaceAllString(src, "width=")
 
 	re, _ = regexp.Compile(`src="data`)
