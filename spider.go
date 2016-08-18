@@ -2,7 +2,6 @@
 package spider
 
 import (
-	"log"
 	"strconv"
 )
 
@@ -13,6 +12,14 @@ type IGrep interface {
 	Detail_url(url string) []IndexItem
 
 	Detail_content(url string) string
+}
+
+//采集器配置规则
+type Guize struct {
+	List_url string
+	Max_page string
+	Cate     string
+	Grep     IGrep
 }
 
 //列表结构
@@ -26,38 +33,23 @@ type IndexItem struct {
  * 一只蜘蛛负责爬行一个列表页面，带分页参数
  **/
 type Spider struct {
-	rule map[string]string
-	grep IGrep
+	rule Guize
 }
 
-func NewSpider(rule map[string]interface{}) *Spider {
+func NewSpider(rule Guize) *Spider {
 	obj := new(Spider)
-	tmp := make(map[string]string)
-	tmp["list_url"] = rule["list_url"].(string)
-	tmp["max_page"] = rule["max_page"].(string)
-	tmp["cate"] = rule["cate"].(string)
-	obj.rule = tmp
-
-	switch t := rule["regexp"].(type) {
-	default:
-		log.Printf("unexpected type %T", t) // %T prints whatever type t has
-	case *Grep1:
-		obj.grep = rule["regexp"].(*Grep1)
-	case *Grep2:
-		obj.grep = rule["regexp"].(*Grep2)
-	}
+	obj.rule = rule
 	return obj
 }
 
 //一个列表页处理
 func (obj *Spider) do_list(url string) {
-	index := obj.grep.Detail_url(url)
-	//log.Println(index)
+	index := obj.rule.Grep.Detail_url(url)
 	db := Mydb()
 	defer db.Close()
 	for _, page := range index {
-		body := obj.grep.Detail_content(page.url)
-		InCar(db, page.title, body, obj.rule["cate"])
+		body := obj.rule.Grep.Detail_content(page.url)
+		InCar(db, page.title, body, obj.rule.Cate)
 	}
 }
 
@@ -67,13 +59,13 @@ func (obj *Spider) do_list(url string) {
  * @return {[type]}    [description]
  */
 func (obj *Spider) Run(c chan string) {
-	max_page, _ := strconv.Atoi(obj.rule["max_page"])
+	max_page, _ := strconv.Atoi(obj.rule.Max_page)
 	page := 0
 	for i := 0; i < max_page; i++ {
 		page = i + 1
-		url := obj.grep.Page_url(obj.rule["list_url"], strconv.Itoa(page))
+		url := obj.rule.Grep.Page_url(obj.rule.List_url, strconv.Itoa(page))
 		obj.do_list(url)
 		//log.Println(url)
 	}
-	c <- obj.rule["list_url"] + " done:" + strconv.Itoa(page)
+	c <- obj.rule.List_url + " done:" + strconv.Itoa(page)
 }
