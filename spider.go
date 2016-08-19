@@ -8,7 +8,7 @@ import (
 
 type IGrep interface {
 	//获取分页链接
-	Page_url(url string, page string) string
+	Page_url(url string, page int) string
 	//获取分页链接
 	Detail_url(url string) []IndexItem
 
@@ -68,7 +68,7 @@ func (obj *Spider) Run(c chan string) {
 	page := 0
 	for i := 0; i < max_page; i++ {
 		page = i + 1
-		url := obj.rule.Grep.Page_url(obj.rule.List_url, strconv.Itoa(page))
+		url := obj.rule.Grep.Page_url(obj.rule.List_url, page)
 		obj.do_list(url)
 		log.Println(url)
 	}

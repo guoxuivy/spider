@@ -5,15 +5,19 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"log"
 	"regexp"
+	"strconv"
 )
 
 type Grep2 struct {
 }
 
 //获取带分页的url
-func (obj *Grep2) Page_url(url string, page string) string {
-	re := regexp.MustCompile(`_[\d]`)
-	url = re.ReplaceAllString(url, "_"+page)
+func (obj *Grep2) Page_url(url string, page int) string {
+	re := regexp.MustCompile(`_([\d]+)`)
+	p := re.FindStringSubmatch(url)
+	start_page, _ := strconv.Atoi(p[1])
+	new_page := start_page + page
+	url = re.ReplaceAllString(url, "_"+strconv.Itoa(new_page))
 	return url
 }
 
