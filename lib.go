@@ -2,6 +2,8 @@ package spider
 
 import (
 	"database/sql"
+	"errors"
+	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 	"log"
 	"os"
@@ -14,20 +16,26 @@ const (
 	DSN string = "root:root@tcp(127.0.0.1:3306)/car?charset=utf8"
 )
 
+var _db *sql.DB
+
 /**
  * 数据库连接
  */
-func Mydb() *sql.DB {
-	db, err := sql.Open("mysql", DSN)
-	if err != nil {
-		log.Fatalf("Open database error: %s\n", err)
+func Mydb() (*sql.DB, error) {
+	if _db != nil {
+		return _db, nil
 	}
-	//defer db.Close() //不关闭连接
-	err = db.Ping()
+	db, _ := sql.Open("mysql", DSN)
+	db.SetMaxOpenConns(200)
+	db.SetMaxIdleConns(100)
+	err := db.Ping()
 	if err != nil {
-		log.Fatal(err)
+		err = errors.New("数据库连接错误," + fmt.Sprint(DSN))
+		return nil, err
+	} else {
+		_db = db
 	}
-	return db
+	return _db, nil
 }
 
 /**

@@ -2,6 +2,7 @@
 package spider
 
 import (
+	"log"
 	"strconv"
 )
 
@@ -45,11 +46,15 @@ func NewSpider(rule Guize) *Spider {
 //一个列表页处理
 func (obj *Spider) do_list(url string) {
 	index := obj.rule.Grep.Detail_url(url)
-	db := Mydb()
-	defer db.Close()
-	for _, page := range index {
-		body := obj.rule.Grep.Detail_content(page.url)
-		InCar(db, page.title, body, obj.rule.Cate)
+	db, err := Mydb()
+	if err != nil {
+		log.Println(err)
+	} else {
+		//defer db.Close()
+		for _, page := range index {
+			body := obj.rule.Grep.Detail_content(page.url)
+			InCar(db, page.title, body, obj.rule.Cate)
+		}
 	}
 }
 
@@ -65,7 +70,7 @@ func (obj *Spider) Run(c chan string) {
 		page = i + 1
 		url := obj.rule.Grep.Page_url(obj.rule.List_url, strconv.Itoa(page))
 		obj.do_list(url)
-		//log.Println(url)
+		log.Println(url)
 	}
 	c <- obj.rule.List_url + " done:" + strconv.Itoa(page)
 }
