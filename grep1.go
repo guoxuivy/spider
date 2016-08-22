@@ -41,6 +41,7 @@ func (obj *Grep1) Detail_content(url string) string {
 	res, err := goquery.NewDocument(url)
 	if err != nil {
 		log.Println(err)
+		return ""
 	}
 	content := res.Find("#article_content")
 	content.Find("img").Each(func(i int, img *goquery.Selection) {

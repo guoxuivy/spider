@@ -27,6 +27,9 @@ func (obj *Grep2) Detail_url(url string) []IndexItem {
 	if err != nil {
 		log.Println(err)
 	}
+	// Po.Add(url)
+	// doc := Po.Res()
+
 	index := make([]IndexItem, 0)
 	doc.Find("dd h4 a").Each(func(i int, li *goquery.Selection) {
 		url, _ := li.Attr("href")
@@ -42,7 +45,11 @@ func (obj *Grep2) Detail_content(url string) string {
 	res, err := goquery.NewDocument(url)
 	if err != nil {
 		log.Println(err)
+		return ""
 	}
+	// Po.Add(url)
+	// res := Po.Res()
+
 	content := res.Find("#dasan_content").PrevAll()
 	content.Each(func(i int, p *goquery.Selection) {
 		tmp, _ := p.Html()
