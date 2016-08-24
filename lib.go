@@ -10,6 +10,11 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"bytes"
+	"io"
+	"io/ioutil"
+	"net/http"
 )
 
 const (
@@ -43,10 +48,10 @@ func Mydb() (*sql.DB, error) {
  * @param  {[type]} log string        [description]
  * @return {[type]}     [description]
  */
-func InCar(db *sql.DB, title string, content string, cate string) {
-	stmt, _ := db.Prepare("INSERT INTO `gai` (`title`, `content`, `cate`) VALUES (?,?,?)")
+func InCar(db *sql.DB, title string, content string, cate string, url string) {
+	stmt, _ := db.Prepare("INSERT INTO `gai` (`title`, `content`, `cate`, `url`) VALUES (?,?,?,?)")
 	defer stmt.Close()
-	stmt.Exec(title, content, cate)
+	stmt.Exec(title, content, cate, url)
 }
 
 /**
@@ -83,4 +88,43 @@ func CleanBody(src string) string {
 	//fmt.Printf("%q\n", re.FindAllString(src, -1))
 	//fmt.Println(src)
 	return src
+}
+
+func isDirExists(path string) bool {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return os.IsExist(err)
+	} else {
+		return fi.IsDir()
+	}
+}
+
+//下载远程图片
+func GetImg(url string) (file string, err error) {
+	path := strings.Split(url, "/")
+	var name string
+	if len(path) > 1 {
+		name = path[len(path)-1]
+	}
+	file = "update/" + time.Now().Format("20060102") + "/" + name
+	dir, _ := os.Getwd()
+	dir = dir + "/update/" + time.Now().Format("20060102")
+
+	if isDirExists(dir) {
+		//fmt.Println("目录存在")
+	} else {
+		err = os.MkdirAll(dir+"/update/"+time.Now().Format("20060102"), os.ModePerm) //生成多级目录
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+
+	//fmt.Println(name)
+	out, err := os.Create(file)
+	defer out.Close()
+	resp, err := http.Get(url)
+	defer resp.Body.Close()
+	pix, err := ioutil.ReadAll(resp.Body)
+	_, err = io.Copy(out, bytes.NewReader(pix))
+	return
 }

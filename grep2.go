@@ -47,14 +47,24 @@ func (obj *Grep2) Detail_content(url string) string {
 		log.Println(err)
 		return ""
 	}
-	// Po.Add(url)
-	// res := Po.Res()
+	//content := res.Find("#dasan_content").PrevAll()
+	res.Find("#dasan_content").NextAll().Remove()
+	res.Find("#dasan_content").Remove()
+	content := res.Find(".content")
 
-	content := res.Find("#dasan_content").PrevAll()
-	content.Each(func(i int, p *goquery.Selection) {
-		tmp, _ := p.Html()
-		body = tmp + body
+	content.Find("img").Each(func(i int, img *goquery.Selection) {
+		src, _ := img.Attr("src")
+		name, _ := GetImg(src)
+		//Po.Add(src)
+		//Po.Res()
+		img.SetAttr("src", "/"+name)
 	})
+	body, _ = content.Html()
+	// content.Each(func(i int, p *goquery.Selection) {
+	// 	tmp, _ := p.Html()
+	// 	body = tmp + body
+	// })
+
 	//log.Println(body)
 	return body
 }

@@ -56,7 +56,8 @@ func (obj *Spider) do_list(url string) {
 			//高并发处理
 			go func(page IndexItem) {
 				body := obj.rule.Grep.Detail_content(page.url)
-				InCar(db, page.title, body, obj.rule.Cate)
+				InCar(db, page.title, body, obj.rule.Cate, page.url)
+				log.Println(page.url)
 				c <- 1
 			}(page)
 		}
