@@ -15,6 +15,12 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"path/filepath"
+
+	"image"
+	"image/draw"
+	"image/jpeg"
+	"image/png"
 )
 
 const (
@@ -113,7 +119,7 @@ func GetImg(url string) (file string, err error) {
 	if isDirExists(dir) {
 		//fmt.Println("目录存在")
 	} else {
-		err = os.MkdirAll(dir+"/update/"+time.Now().Format("20060102"), os.ModePerm) //生成多级目录
+		err = os.MkdirAll(dir, os.ModePerm) //生成多级目录
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -127,4 +133,68 @@ func GetImg(url string) (file string, err error) {
 	pix, err := ioutil.ReadAll(resp.Body)
 	_, err = io.Copy(out, bytes.NewReader(pix))
 	return
+}
+
+func WaterFilelist(path string) {
+	Po := NewPool()
+
+	var list []string
+
+	err := filepath.Walk(path, func(path string, f os.FileInfo, err error) error {
+		if f == nil {
+			return err
+		}
+		if f.IsDir() {
+			return nil
+		}
+		//WaterImg(path)
+		list = append(list, path)
+		// Po.Add(path)
+		// Po.Res()
+		return nil
+	})
+	if err != nil {
+		fmt.Printf("filepath.Walk() returned %v\n", err)
+	}
+
+	// 添加9个任务后关闭Channel
+	for j := 0; j < len(list); j++ {
+		Po.Add(list[j])
+	}
+
+	//获取所有的处理结果
+	for a := 0; a < len(list); a++ {
+		Po.Res()
+	}
+}
+
+func WaterImg(path string) string {
+	//原始图片是sam.jpg
+	imgb, _ := os.Open(path)
+	img, _ := jpeg.Decode(imgb)
+	defer imgb.Close()
+	if img == nil {
+		return ""
+	}
+
+	wmb, _ := os.Open("water.png")
+	watermark, _ := png.Decode(wmb)
+	defer wmb.Close()
+
+	//把水印写到右下角，并向0坐标各偏移10个像素
+	//offset := image.Pt(img.Bounds().Dx()-watermark.Bounds().Dx()-10, img.Bounds().Dy()-watermark.Bounds().Dy()-10)
+	offset := image.Pt(1, img.Bounds().Dy()-watermark.Bounds().Dy()-1)
+	b := img.Bounds()
+	m := image.NewNRGBA(b)
+
+	draw.Draw(m, b, img, image.ZP, draw.Src)
+	draw.Draw(m, watermark.Bounds().Add(offset), watermark, image.ZP, draw.Over)
+
+	//生成新图片new.jpg，并设置图片质量..
+	imgw, _ := os.Create("ok/" + path)
+	jpeg.Encode(imgw, m, &jpeg.Options{100})
+	defer imgw.Close()
+
+	return "ok"
+	//fmt.Println("水印添加结束,请查看new.jpg图片...")
 }

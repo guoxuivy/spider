@@ -21,8 +21,9 @@ type Pool struct {
 func NewPool() *Pool {
 	obj := new(Pool)
 	obj.jobs = make(chan string, 100)
-	obj.results = make(chan string, 100)
+	obj.results = make(chan string, 4000) //输出缓冲过小直接导致锁死
 	obj.Run()
+	log.Println("pool start")
 	return obj
 }
 
@@ -40,12 +41,8 @@ func (obj *Pool) Res() string {
 //这个是工作线程，处理具体的业务逻辑，将jobs中的任务取出，处理后将处理结果放置在results中。
 func (obj *Pool) worker(id int) {
 	for j := range obj.jobs {
-		//log.Println("worker", id, "processing job", j)
-		res, err := GetImg(j)
-		if err != nil {
-			log.Println(err)
-		}
-		//time.Sleep(time.Second)
+		res := WaterImg(j)
+		//log.Println("work", id)
 		obj.results <- res
 	}
 }
@@ -57,7 +54,7 @@ func (obj *Pool) Run() {
 	// results := make(chan int, 100)
 
 	// 开启三个线程，也就是说线程池中只有3个线程，实际情况下，我们可以根据需要动态增加或减少线程。
-	for w := 1; w <= 200; w++ {
+	for w := 1; w <= 100; w++ {
 		go obj.worker(w)
 	}
 
