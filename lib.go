@@ -4,12 +4,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
 	"log"
 	"os"
 	"regexp"
 	"strings"
 	"time"
+
+	_ "github.com/go-sql-driver/mysql"
 
 	"bytes"
 	"io"
@@ -17,6 +18,7 @@ import (
 	"net/http"
 	"path/filepath"
 
+	"crypto/md5"
 	"image"
 	"image/draw"
 	"image/jpeg"
@@ -55,9 +57,35 @@ func Mydb() (*sql.DB, error) {
  * @return {[type]}     [description]
  */
 func InCar(db *sql.DB, title string, content string, cate string, url string) {
-	stmt, _ := db.Prepare("INSERT INTO `gai` (`title`, `content`, `cate`, `url`) VALUES (?,?,?,?)")
+	urlmd5 := Md5(url)
+	stmt, _ := db.Prepare("INSERT INTO `gai` (`title`, `content`, `cate`, `url`, `urlmd5`) VALUES (?,?,?,?,?)")
 	defer stmt.Close()
-	stmt.Exec(title, content, cate, url)
+	stmt.Exec(title, content, cate, url, urlmd5)
+}
+
+/**
+ * url是否存在 检测
+ * @param  {[type]} url string
+ * @return bool
+ */
+func CheckUrl(db *sql.DB, url string) bool {
+	urlmd5 := Md5(url)
+	//查询数据库
+	query, err := db.Query("SELECT count(*) as num FROM `gai` WHERE `urlmd5` = ? ", urlmd5)
+	if err != nil {
+		log.Println("查询数据库失败", err.Error())
+	}
+	defer query.Close()
+	var num int
+	for query.Next() {
+		err = query.Scan(&num)
+	}
+	if num == 0 {
+		return false
+	} else {
+		return true
+	}
+
 }
 
 /**
@@ -197,4 +225,11 @@ func WaterImg(path string) string {
 
 	return "ok"
 	//fmt.Println("水印添加结束,请查看new.jpg图片...")
+}
+
+func Md5(str string) (md5str string) {
+	data := []byte(str)
+	has := md5.Sum(data)
+	md5str = fmt.Sprintf("%x", has)
+	return
 }

@@ -2,10 +2,11 @@
 package spider
 
 import (
-	"github.com/PuerkitoBio/goquery"
 	"log"
 	"regexp"
 	"strconv"
+
+	"github.com/PuerkitoBio/goquery"
 )
 
 type Grep1 struct {

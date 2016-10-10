@@ -2,10 +2,11 @@
 package spider
 
 import (
-	"github.com/PuerkitoBio/goquery"
 	"log"
 	"regexp"
 	"strconv"
+
+	"github.com/PuerkitoBio/goquery"
 )
 
 type Grep2 struct {
@@ -27,9 +28,6 @@ func (obj *Grep2) Detail_url(url string) []IndexItem {
 	if err != nil {
 		log.Println(err)
 	}
-	// Po.Add(url)
-	// doc := Po.Res()
-
 	index := make([]IndexItem, 0)
 	doc.Find("dd h4 a").Each(func(i int, li *goquery.Selection) {
 		url, _ := li.Attr("href")
@@ -47,24 +45,15 @@ func (obj *Grep2) Detail_content(url string) string {
 		log.Println(err)
 		return ""
 	}
-	//content := res.Find("#dasan_content").PrevAll()
 	res.Find("#dasan_content").NextAll().Remove()
 	res.Find("#dasan_content").Remove()
 	content := res.Find(".content")
-
-	content.Find("img").Each(func(i int, img *goquery.Selection) {
-		src, _ := img.Attr("src")
-		name, _ := GetImg(src)
-		//Po.Add(src)
-		//Po.Res()
-		img.SetAttr("src", "/"+name)
-	})
+	//图片下载本地化
+	//	content.Find("img").Each(func(i int, img *goquery.Selection) {
+	//		src, _ := img.Attr("src")
+	//		name, _ := GetImg(src)
+	//		img.SetAttr("src", "/"+name)
+	//	})
 	body, _ = content.Html()
-	// content.Each(func(i int, p *goquery.Selection) {
-	// 	tmp, _ := p.Html()
-	// 	body = tmp + body
-	// })
-
-	//log.Println(body)
 	return body
 }

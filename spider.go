@@ -2,6 +2,7 @@
 package spider
 
 import (
+	"database/sql"
 	"log"
 	"strconv"
 )
@@ -35,6 +36,7 @@ type IndexItem struct {
  **/
 type Spider struct {
 	rule Guize
+	db   *sql.DB
 }
 
 func NewSpider(rule Guize) *Spider {
@@ -46,26 +48,21 @@ func NewSpider(rule Guize) *Spider {
 //一个列表页处理
 func (obj *Spider) do_list(url string) {
 	index := obj.rule.Grep.Detail_url(url)
-	db, err := Mydb()
-	if err != nil {
-		log.Println(err)
-	} else {
-		//defer db.Close()
-		c := make(chan int, 10)
-		for _, page := range index {
-			//高并发处理
-			go func(page IndexItem) {
+	c := make(chan int, 10)
+	for _, page := range index {
+		//高并发处理
+		go func(page IndexItem) {
+			if false == CheckUrl(obj.db, page.url) {
 				body := obj.rule.Grep.Detail_content(page.url)
-				InCar(db, page.title, body, obj.rule.Cate, page.url)
+				InCar(obj.db, page.title, body, obj.rule.Cate, page.url)
 				log.Println(page.url)
-				c <- 1
-			}(page)
-		}
-		//获取所有的处理结果 确保无丢失
-		for a := 1; a <= len(index); a++ {
-			<-c
-		}
-
+			}
+			c <- 1
+		}(page)
+	}
+	//获取所有的处理结果 确保无丢失
+	for a := 1; a <= len(index); a++ {
+		<-c
 	}
 }
 
@@ -75,13 +72,19 @@ func (obj *Spider) do_list(url string) {
  * @return {[type]}    [description]
  */
 func (obj *Spider) Run(c chan string) {
+	db, err := Mydb()
+	//defer db.Close()
+	if err != nil {
+		log.Println(err)
+	}
+	obj.db = db
+
 	max_page, _ := strconv.Atoi(obj.rule.Max_page)
 	page := 0
 	for i := 0; i < max_page; i++ {
 		page = i + 1
 		url := obj.rule.Grep.Page_url(obj.rule.List_url, page)
 		obj.do_list(url)
-		//log.Println(url)
 	}
 	c <- obj.rule.List_url + " done:" + strconv.Itoa(page)
 }
