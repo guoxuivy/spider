@@ -13,6 +13,7 @@ import (
 
 	"bufio"
 	"database/sql"
+	"encoding/json"
 	"errors"
 
 	"github.com/go-sql-driver/mysql"
@@ -44,55 +45,57 @@ http://data.gtimg.cn/flashdata/hushen/weekly/sz002609.js 周数据
 http://money.finance.sina.com.cn/corp/go.php/vMS_MarketHistory/stockid/601006.phtml?year=2016&jidu=3
 
 http://table.finance.yahoo.com/table.csv?s=000001.sz
-
-
 */
-/**
- * 数据库连接
- */
-func Mydb() (*sql.DB, error) {
-	if _db != nil {
-		return _db, nil
-	}
-	db, _ := sql.Open("mysql", DSN)
-	db.SetMaxOpenConns(200)
-	db.SetMaxIdleConns(100)
-	err := db.Ping()
-	if err != nil {
-		err = errors.New("数据库连接错误," + fmt.Sprint(DSN))
-		return nil, err
-	} else {
-		_db = db
-	}
-	return _db, nil
+
+type SinaData struct {
+	Uname         string
+	Code          string
+	Name          string
+	Trade         float64 //最新价
+	Pricechange   float64 //涨跌额
+	Changepercent float64 //涨跌幅
+	Buy           float64 //买入
+	Sell          float64 //卖出
+	Settlement    float64 //昨收
+	Open          float64 //今开
+	High          float64 //最高
+	Low           float64 //最低
+	volume        float64 //成交量（手）
+	Amount        float64 //成交额（万）
+	Ticktime      string  //数据时间
 }
 
-/**
- * 升级日志写入  数据库保存
- * @param  {[type]} log string        [description]
- * @return {[type]}     [description]
- */
-func InGu(db *sql.DB, code string, cate string) {
-	//LOAD DATA LOCAL INFILE 'C:\\Users\\Administrator\\Desktop\\222222222\\sz002609.csv' INTO TABLE `car`.`gu_history` FIELDS ESCAPED BY '\\' TERMINATED BY ',' LINES TERMINATED BY '\n' (`date`, `open`, `high`, `low`, `close`, `volume`, `adj_close`);
-	//UPDATE `car`.`gu_history` SET `code` = '000001' WHERE `code` = '';
-	//DELETE FROM gu_history WHERE `date`='0000-00-00'
+var datalist []SinaData
 
-	filePath := "gu_csv/" + code + ".csv"
-	mysql.RegisterLocalFile(filePath)
-	sql := `LOAD DATA LOCAL INFILE '` + filePath + `' INTO TABLE gu_history FIELDS ESCAPED BY '\\' TERMINATED BY ',' LINES TERMINATED BY '\n' ` + " (`date`, `open`, `high`, `low`, `close`, `volume`, `adj_close`)"
-	_, err := db.Exec(sql)
+func test() {
+	url := `http://money.finance.sina.com.cn/d/api/openapi_proxy.php/?__s=[["hq","hs_a","volume",1,1,50]]`
+	resp, _ := http.Get(url)
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+	//d := string(body)
+	//去掉头尾[]
+	jsonstr := body[1 : len(body)-1]
+	var f interface{}
+	err := json.Unmarshal(jsonstr, &f)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("非json数据：", err)
 	}
-	mysql.DeregisterLocalFile(filePath)
-	//	_, err = db.Exec("UPDATE `gu_history` SET `code` = '" + code + "' WHERE `code` = ''")
-	//	if err != nil {
-	//		fmt.Println(err)
-	//	}
-	//	_, err = db.Exec("DELETE FROM gu_history WHERE `date`='0000-00-00'")
-	//	if err != nil {
-	//		fmt.Println(err)
-	//	}
+
+	m := f.(map[string]interface{})
+	items := m["items"].([]interface{}) //数组断言
+	for _, v := range items {
+		row := v.([]interface{})
+		tmp := SinaData{}
+		tmp.Uname = row[0].(string)
+		tmp.Code = row[1].(string)
+		tmp.Name = row[2].(string)
+		tmp.Trade, _ = strconv.ParseFloat(row[3].(string), 64)
+		tmp.Pricechange, _ = strconv.ParseFloat(row[4].(string), 64)
+		datalist = append(datalist, tmp)
+	}
+
+	fmt.Println(datalist)
+
 }
 
 /**
@@ -135,7 +138,8 @@ func do_one(db *sql.DB, code string, cate string) {
 
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
-	gu_init()
+	test()
+	//gu_init()
 }
 
 //分页参数为500
@@ -160,7 +164,10 @@ func do_limit(db *sql.DB, ch chan string, offset string) {
 //历史数据初始化
 func gu_init() {
 	//下载cvs文件
-	db, _ := Mydb()
+	db, err := Mydb()
+	if err != nil {
+		fmt.Println(err)
+	}
 	ch := make(chan string, 10)
 	i := 0
 	for i < 10 {
@@ -260,4 +267,52 @@ func _query(db *sql.DB, sql string) (map[int]map[string]string, error) {
 		i++
 	}
 	return results, nil
+}
+
+/**
+ * 数据库连接
+ */
+func Mydb() (*sql.DB, error) {
+	if _db != nil {
+		return _db, nil
+	}
+	db, _ := sql.Open("mysql", DSN)
+	db.SetMaxOpenConns(200)
+	db.SetMaxIdleConns(100)
+	err := db.Ping()
+	if err != nil {
+		err = errors.New("数据库连接错误," + fmt.Sprint(DSN))
+		return nil, err
+	} else {
+		_db = db
+	}
+	return _db, nil
+}
+
+/**
+ * 升级日志写入  数据库保存
+ * @param  {[type]} log string        [description]
+ * @return {[type]}     [description]
+ */
+func InGu(db *sql.DB, code string, cate string) {
+	//LOAD DATA LOCAL INFILE 'C:\\Users\\Administrator\\Desktop\\222222222\\sz002609.csv' INTO TABLE `car`.`gu_history` FIELDS ESCAPED BY '\\' TERMINATED BY ',' LINES TERMINATED BY '\n' (`date`, `open`, `high`, `low`, `close`, `volume`, `adj_close`);
+	//UPDATE `car`.`gu_history` SET `code` = '000001' WHERE `code` = '';
+	//DELETE FROM gu_history WHERE `date`='0000-00-00'
+
+	filePath := "gu_csv/" + code + ".csv"
+	mysql.RegisterLocalFile(filePath)
+	sql := `LOAD DATA LOCAL INFILE '` + filePath + `' INTO TABLE gu_history FIELDS ESCAPED BY '\\' TERMINATED BY ',' LINES TERMINATED BY '\n' ` + " (`date`, `open`, `high`, `low`, `close`, `volume`, `adj_close`)"
+	_, err := db.Exec(sql)
+	if err != nil {
+		fmt.Println(err)
+	}
+	mysql.DeregisterLocalFile(filePath)
+	//	_, err = db.Exec("UPDATE `gu_history` SET `code` = '" + code + "' WHERE `code` = ''")
+	//	if err != nil {
+	//		fmt.Println(err)
+	//	}
+	//	_, err = db.Exec("DELETE FROM gu_history WHERE `date`='0000-00-00'")
+	//	if err != nil {
+	//		fmt.Println(err)
+	//	}
 }
