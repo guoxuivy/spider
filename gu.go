@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -23,6 +24,29 @@ const (
 
 var _db *sql.DB
 
+/**
+接口整理
+
+1、新浪批量实时数据接口
+页面地址：http://finance.sina.com.cn/data/#stock
+接口地址：http://money.finance.sina.com.cn/d/api/openapi_proxy.php/?__s=[["hq","hs_a","volume",1,2,500]]
+参数说明：每页最多500条数据 6次获取即可 最多2940只A股 "volume",1,2,500] 按volume降序排列  规则为： 排序字段，排序，页数，每页数量
+返回结构说明：
+["symbol","code",		"name",				"trade","pricechange","changepercent","buy","sell","settlement","open","high","low","volume","amount",   			   "ticktime","per","per_d","nta","pb","mktcap","nmc","turnoverratio","favor","guba"]
+			代码			名称						最新价	涨跌额	涨跌幅	买入		卖出		昨收		今开		最高		最低		成交量（手）	成交额（万）  数据时间
+["sh600408","600408","\u5b89\u6cf0\u96c6\u56e2","5.930","0.310","5.516","5.930","5.940","5.620","5.770","6.180","5.710","157431523","943257675","11:30:00",148.25,-95.185,"1.0973",5.404,597032.4,597032.4,15.63682,"",""],
+
+2、
+实时数据接口
+http://hq.sinajs.cn/list=sz002609
+历史数据接口
+http://data.gtimg.cn/flashdata/hushen/weekly/sz002609.js 周数据
+http://money.finance.sina.com.cn/corp/go.php/vMS_MarketHistory/stockid/601006.phtml?year=2016&jidu=3
+
+http://table.finance.yahoo.com/table.csv?s=000001.sz
+
+
+*/
 /**
  * 数据库连接
  */
@@ -71,14 +95,6 @@ func InGu(db *sql.DB, code string, cate string) {
 	//	}
 }
 
-//实时数据接口
-//http://hq.sinajs.cn/list=sz002609
-//历史数据接口
-//http://data.gtimg.cn/flashdata/hushen/weekly/sz002609.js 周数据
-// http://money.finance.sina.com.cn/corp/go.php/vMS_MarketHistory/stockid/601006.phtml?year=2016&jidu=3
-
-//http://table.finance.yahoo.com/table.csv?s=000001.sz
-
 /**
  * 升级日志写入  文件追加参数奇葩 多 要3个
  * @param  {[type]} log string        [description]
@@ -118,6 +134,7 @@ func do_one(db *sql.DB, code string, cate string) {
 }
 
 func main() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	gu_init()
 }
 
