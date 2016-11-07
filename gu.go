@@ -15,6 +15,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"sort"
 
 	"github.com/go-sql-driver/mysql"
 )
@@ -31,7 +32,7 @@ var _db *sql.DB
 1、新浪批量实时数据接口
 页面地址：http://finance.sina.com.cn/data/#stock
 接口地址：http://money.finance.sina.com.cn/d/api/openapi_proxy.php/?__s=[["hq","hs_a","volume",1,2,500]]
-参数说明：每页最多500条数据 6次获取即可 最多2940只A股 "volume",1,2,500] 按volume降序排列  规则为： 排序字段，排序，页数，每页数量
+参数说明：每页最多500条数据 6次获取即可 最多2940只A股 "volume",0,2,500] 按volume降序排列  规则为： 排序字段，排序，页数，每页数量
 返回结构说明：
 ["symbol","code",		"name",				"trade","pricechange","changepercent","buy","sell","settlement","open","high","low","volume","amount",   			   "ticktime","per","per_d","nta","pb","mktcap","nmc","turnoverratio","favor","guba"]
 			代码			名称						最新价	涨跌额	涨跌幅	买入		卖出		昨收		今开		最高		最低		成交量（手）	成交额（万）  数据时间
@@ -60,41 +61,113 @@ type SinaData struct {
 	Open          float64 //今开
 	High          float64 //最高
 	Low           float64 //最低
-	volume        float64 //成交量（手）
+	Volume        float64 //成交量（手）
 	Amount        float64 //成交额（万）
 	Ticktime      string  //数据时间
 }
 
-var datalist []SinaData
+//var datalist map[string]SinaData //无序map
+var datalist []SinaData //有序排列
 
-func test() {
-	url := `http://money.finance.sina.com.cn/d/api/openapi_proxy.php/?__s=[["hq","hs_a","volume",1,1,50]]`
-	resp, _ := http.Get(url)
-	defer resp.Body.Close()
-	body, _ := ioutil.ReadAll(resp.Body)
-	//d := string(body)
-	//去掉头尾[]
-	jsonstr := body[1 : len(body)-1]
-	var f interface{}
-	err := json.Unmarshal(jsonstr, &f)
+type ListWrap struct {
+	datalist []SinaData
+	by       func(p, q *SinaData) bool
+}
+type SortBy func(p, q *SinaData) bool
+
+func (this ListWrap) Len() int { // 重写 Len() 方法
+	return len(this.datalist)
+}
+func (this ListWrap) Swap(i, j int) { // 重写 Swap() 方法
+	this.datalist[i], this.datalist[j] = this.datalist[j], this.datalist[i]
+}
+func (this ListWrap) Less(i, j int) bool { // 重写 Less() 方法
+	return this.by(&this.datalist[i], &this.datalist[j])
+}
+func SortData(datalist []SinaData, by SortBy) { // SortPerson 方法
+	sort.Sort(ListWrap{datalist, by})
+}
+
+func F64(a interface{}) float64 {
+	res, err := strconv.ParseFloat(a.(string), 64)
 	if err != nil {
-		fmt.Println("非json数据：", err)
+		fmt.Println("float64数据错误：", a.(string))
+		return 0
+	}
+	return res
+}
+
+//抓取最新数据 成交量倒排
+func catch_sina_list(args ...string) {
+	for p := 1; p <= 6; p++ {
+		url := `http://money.finance.sina.com.cn/d/api/openapi_proxy.php/?__s=[["hq","hs_a","volume",0,` + strconv.Itoa(p) + `,500]]`
+		resp, _ := http.Get(url)
+		defer resp.Body.Close()
+		body, _ := ioutil.ReadAll(resp.Body)
+		//d := string(body)
+		//去掉头尾[]
+		jsonstr := body[1 : len(body)-1]
+		var f interface{}
+		err := json.Unmarshal(jsonstr, &f)
+		if err != nil {
+			fmt.Println("非json数据：", err)
+		}
+
+		m := f.(map[string]interface{})
+		items := m["items"].([]interface{}) //数组断言
+		for _, v := range items {
+			row := v.([]interface{})
+			code := row[1].(string)
+			tmp := SinaData{}
+			tmp.Uname = row[0].(string)
+			tmp.Code = code
+			tmp.Name = row[2].(string)
+			tmp.Trade = F64(row[3])
+			tmp.Pricechange = F64(row[4])
+			tmp.Changepercent = F64(row[5])
+			tmp.Buy = F64(row[6])
+			tmp.Sell = F64(row[7])
+			tmp.Settlement = F64(row[8])
+			tmp.Open = F64(row[9])
+			tmp.High = F64(row[10])
+			tmp.Low = F64(row[11])
+			tmp.Volume = F64(row[12])
+			tmp.Amount = F64(row[13])
+			tmp.Ticktime = row[14].(string)
+			datalist = append(datalist, tmp)
+		}
+	}
+}
+
+//数据排序
+func show_ord(args ...string) {
+	args_num := len(args)
+	if args_num == 0 {
+		SortData(datalist, func(p, q *SinaData) bool {
+			return q.Volume < p.Volume // 成交量 递减排序
+			//return p.Changepercent < q.Changepercent // 递增排序
+		})
+	}
+	if args_num > 0 {
+		switch args[0] {
+		case "1":
+			SortData(datalist, func(p, q *SinaData) bool {
+				return q.Changepercent < p.Changepercent // 涨幅 递减排序
+			})
+		case "2":
+			SortData(datalist, func(p, q *SinaData) bool {
+				return q.Volume < p.Volume // 成交额 递减排序
+			})
+		}
 	}
 
-	m := f.(map[string]interface{})
-	items := m["items"].([]interface{}) //数组断言
-	for _, v := range items {
-		row := v.([]interface{})
-		tmp := SinaData{}
-		tmp.Uname = row[0].(string)
-		tmp.Code = row[1].(string)
-		tmp.Name = row[2].(string)
-		tmp.Trade, _ = strconv.ParseFloat(row[3].(string), 64)
-		tmp.Pricechange, _ = strconv.ParseFloat(row[4].(string), 64)
-		datalist = append(datalist, tmp)
+	limit := 50
+	if args_num == 2 {
+		limit, _ = strconv.Atoi(args[1])
 	}
-
-	fmt.Println(datalist)
+	for i := 0; i < limit; i++ {
+		fmt.Println(datalist[i])
+	}
 
 }
 
@@ -138,8 +211,45 @@ func do_one(db *sql.DB, code string, cate string) {
 
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
-	test()
-	//gu_init()
+	args := os.Args
+	if len(args) == 2 {
+		switch args[1] {
+		case "1":
+			catch_sina_list("")
+		case "2":
+			show_ord("")
+		case "0":
+			os.Exit(0)
+		default:
+		}
+	}
+	if len(args) == 1 {
+		for {
+			fmt.Println("操作目录: ")
+			fmt.Println("1、抓取最新数据。")
+			fmt.Println("2、成交量前十。")
+			fmt.Println("3、test_run 抓取最新数据。")
+			fmt.Println("0、退出。 ")
+			inputReader := bufio.NewReader(os.Stdin)
+			command, _, _ := inputReader.ReadLine()
+			code := string(command)
+			code_arr := strings.Split(code, " ")
+			//fmt.Println(code_arr)
+			method := code_arr[0]
+			agrs := code_arr[1:]
+			switch method {
+			case "1":
+				catch_sina_list(agrs...)
+			case "2":
+				show_ord(agrs...)
+			case "0":
+				os.Exit(0)
+			default:
+				fmt.Println("default")
+			}
+			fmt.Println("-------处理完成-------")
+		}
+	}
 }
 
 //分页参数为500
