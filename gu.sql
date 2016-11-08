@@ -17,6 +17,18 @@ CREATE DATABASE /*!32312 IF NOT EXISTS*/`car` /*!40100 DEFAULT CHARACTER SET utf
 
 USE `car`;
 
+CREATE TABLE `gu_day_history` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `code` varchar(10) NOT NULL DEFAULT '0',
+  `date` date NOT NULL,
+  `open` decimal(5,2) NOT NULL COMMENT '开盘',
+  `close` decimal(5,2) NOT NULL COMMENT '收盘',
+  `volume` int(20) NOT NULL COMMENT '成交量',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `code` (`code`,`date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8
+
+
 CREATE TABLE `gu_history` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `code` varchar(10) NOT NULL DEFAULT '0',
