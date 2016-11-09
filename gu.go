@@ -22,10 +22,23 @@ const (
 	DSN string = "root:root@tcp(127.0.0.1:3306)/car?charset=utf8"
 )
 
+//总资产
+var list_zzc map[string]string
+
+//初始化
+func init() {
+	list_zzc = make(map[string]string)
+}
+
 var _db *sql.DB
 
 /**
 接口整理
+和讯地址：http://quote.hexun.com/default.htm#stock
+和讯量比倒排地址：http://quote.tool.hexun.com/hqzx/quote.aspx?type=2&market=0&sorttype=12&updown=up&page=1&count=100
+返回结果：代码	名称	最新价	涨跌幅	昨收	今开	最高	最低	成交量	成交额	换手	振幅	量比
+腾讯个股详情 逗号分割 最后值为总资产
+http://qt.gtimg.cn/r=0.6435463407158832q=s_sz000002
 
 1、新浪批量实时数据接口
 页面地址：http://finance.sina.com.cn/data/#stock
@@ -64,6 +77,7 @@ type SinaData struct {
 	Ticktime      string  //数据时间 //原始数据结束
 	LB5           float64 //前5天量比 平价每分钟的成交量
 	LB            float64 //量比 当前量/分钟 /LB5
+	ZZC           float64 //总资产
 }
 
 //是否已经计算5日量比
@@ -94,7 +108,6 @@ func SortData(datalist []SinaData, by SortBy) { // SortPerson 方法
 func F64(a interface{}) float64 {
 	res, err := strconv.ParseFloat(a.(string), 64)
 	if err != nil {
-		fmt.Println("float64数据错误：", a.(string))
 		return 0
 	}
 	return res
@@ -122,13 +135,13 @@ func order_by(args ...string) {
 		}
 	}
 
-	limit := 50
-	if args_num == 2 {
-		limit, _ = strconv.Atoi(args[1])
-	}
-	for i := 0; i < limit; i++ {
-		fmt.Println(datalist[i])
-	}
+	//	limit := 10
+	//	if args_num == 2 {
+	//		limit, _ = strconv.Atoi(args[1])
+	//	}
+	//	for i := 0; i < limit; i++ {
+	//		fmt.Println(datalist[i])
+	//	}
 }
 
 //抓取最新数据
@@ -173,6 +186,40 @@ func catch_sina_list(ch chan string, page string) {
 
 }
 
+//抓取总资产数据
+func catch_zzc(code_list []string) map[string]string {
+	db, _ := Mydb()
+	//http: //qt.gtimg.cn/r=0.6435463407158832q=s_sz000002,s_sz000001
+	//SELECT `code`, `cate`  FROM `gu` WHERE `code` IN (600000,600004)
+	where := strings.Join(code_list, ",")
+	tmp, _ := _query(db, "SELECT `code`, `cate`  FROM `gu` WHERE `code` IN (0,"+where+")")
+
+	url := "http://qt.gtimg.cn/r=0.6435463407158832q="
+	for _, tmp1 := range tmp {
+		url = url + "s_" + tmp1["cate"] + tmp1["code"] + ","
+	}
+	url = url[0 : len(url)-1]
+	//fmt.Println(url)
+	resp, _ := http.Get(url)
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+	str := string(body)
+	str = str[0 : len(str)-2]
+	res_arr := strings.Split(str, ";")
+
+	//list_zzc := make(map[string]string)
+	for _, row := range res_arr {
+		row_arr := strings.Split(row, "~")
+		zzc := strings.Split(row_arr[9], "\"")
+		code := row_arr[2]
+		_zcc := zzc[0]
+		if _zcc != "" {
+			list_zzc[code] = _zcc
+		}
+	}
+	return list_zzc
+}
+
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	args := os.Args
@@ -193,7 +240,7 @@ func main() {
 			fmt.Println("1、抓取最新数据。")
 			fmt.Println("2、成交量前十。2 1/2 10 (涨幅/成交量)")
 			fmt.Println("3、test_run 抓取最新数据。")
-			fmt.Println("8、量比选股大法。")
+			fmt.Println("8、量比选股大法（多次准确）。")
 			fmt.Println("9、保存今日数据。")
 			fmt.Println("0、退出。 ")
 			inputReader := bufio.NewReader(os.Stdin)
@@ -209,7 +256,7 @@ func main() {
 			case "2":
 				order_by(agrs...)
 			case "8":
-				LB_list()
+				LB_HX()
 			case "9":
 				save_list()
 			case "0":
@@ -237,9 +284,108 @@ func list_init() {
 	}
 	fmt.Println("数据采集完成。")
 }
+func checkerr(err error) {
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+//datalist结果数据覆盖式插入
+func datalist_append(data SinaData) {
+	has := -1
+	for k, v := range datalist {
+		if v.Code == data.Code {
+			has = k
+			break
+		}
+	}
+	if has > -1 {
+		datalist[has] = data
+	} else {
+		datalist = append(datalist, data)
+	}
+}
+
+//和讯量比选股
+func LB_HX() {
+	url := `http://quote.tool.hexun.com/hqzx/quote.aspx?type=2&market=0&sorttype=12&updown=up&page=1&count=100`
+	resp, err := http.Get(url)
+	checkerr(err)
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+	//d := string(body)
+	//去掉头尾dataArr = [   ];StockListPage.GetData(dataArr,28,"2016-11-09 10:57:51");
+
+	jsonstr := "{\"items\":[" + string(body[13:len(body)-57]) + "}"
+	jsonstr = strings.Replace(jsonstr, "'", "\"", -1)
+	jsonstr = strings.Replace(jsonstr, ";", "", -1)
+	//fmt.Println(jsonstr)
+	//jsonstr = `{"items":[["300555","路畅科技",86.33,-1.89,87.99,86.00,87.97,84.56,39645.73,341768789,19.82,3.88,2150.57]]}`
+	//代码	名称	最新价	涨跌幅	昨收	今开	最高	最低	成交量	成交额	换手	振幅	量比
+	var f interface{}
+	err = json.Unmarshal([]byte(jsonstr), &f)
+	checkerr(err)
+	m := f.(map[string]interface{})
+	items := m["items"].([]interface{}) //数组断言
+
+	code_list := []string{}
+	for _, v := range items {
+		row := v.([]interface{})
+		code := row[0].(string)
+		tmp := SinaData{}
+		tmp.Code = code
+		//tmp.Name = row[1].(string)
+		tmp.Trade = row[2].(float64)
+		tmp.Changepercent = row[3].(float64)
+		tmp.Settlement = row[4].(float64)
+		tmp.Open = row[5].(float64)
+		tmp.High = row[6].(float64)
+		tmp.Low = row[7].(float64)
+		tmp.Volume = row[8].(float64)
+		tmp.Amount = row[9].(float64)
+		tmp.LB = row[12].(float64)
+		//datalist = append(datalist, tmp)
+		datalist_append(tmp)
+		code_list = append(code_list, code)
+	}
+	//总资产数据添加 过滤
+	map_zzc := catch_zzc(code_list)
+	for k, row := range datalist {
+		_zzc := F64(map_zzc[row.Code])
+		if datalist[k].ZZC == 0 && _zzc > 0 {
+			datalist[k].ZZC = _zzc
+		}
+
+	}
+	var tmp []SinaData
+	for _, row := range datalist {
+		//小于100亿
+		if F64(map_zzc[row.Code]) > 200 {
+			continue
+		}
+		//涨幅在0~3之间
+		if row.Changepercent < 0 || row.Changepercent > 3 {
+			continue
+		}
+		//涨幅在0~3之间
+		if row.Trade > 20 {
+			continue
+		}
+		tmp = append(tmp, row)
+	}
+	datalist = tmp
+
+	//结果输出
+	order_by("2") //量比倒排输出
+	fmt.Println("代码|", "当前价|", "涨幅|", "量比|", "总资产")
+	for _, row := range datalist {
+		fmt.Println(row.Code, row.Trade, row.Changepercent, row.LB, row.ZZC)
+	}
+
+}
 
 //量比选股
-func LB_list() {
+func LB_list_bak() {
 	e_time := time.Now().Unix() //当前时间戳
 	db, _ := Mydb()
 	if len(datalist) == 0 {
@@ -248,7 +394,7 @@ func LB_list() {
 
 	//计算5日量比数据
 	if haslb5 == 0 {
-		res, _ := _query(db, "SELECT `code`, `date` FROM `gu_day_history` WHERE `code`='000001' ORDER BY `date` DESC LIMIT 0,6")
+		res, _ := _query(db, "SELECT `code`, `date` FROM `gu_day_history` WHERE `code`='000001' ORDER BY `date` DESC LIMIT 0,2")
 		day := res[len(res)-1]["date"]
 		//计算 5日成交量数据 每日4小时
 		//分组统计前5天成交量之和
@@ -263,27 +409,33 @@ func LB_list() {
 		}
 		haslb5 = 1
 	}
-	//计算量比
-	the_time, _ := time.Parse("2006-01-02 15:04:05", time.Now().Format("2006-01-02")+" 09:25:00")
-	s_time := the_time.Unix()     //开市时间戳
-	fen := (e_time - s_time) / 60 //已开市分钟
 
+	//计算量比
+	t_day := time.Now().Format("2006-01-02")
+	the_time, _ := time.Parse("2006-01-02 15:04:05", t_day+" 01:25:00") //由于golang 8小时时差
+	s_time := the_time.Unix()                                           //开市时间戳
+	fen := (e_time - s_time) / 60                                       //已开市分钟
+	fmt.Println(e_time, s_time)
 	for key, row := range datalist {
-		lb := fmt.Sprintf("%.3f", row.Volume/float64(fen)/row.LB5)
-		datalist[key].LB = F64(lb)
+		if row.LB5 == 0 {
+			datalist[key].LB = 0
+		} else {
+			lb := fmt.Sprintf("%.3f", row.Volume/float64(fen)/row.LB5)
+			datalist[key].LB = F64(lb)
+		}
 	}
 	order_by("2") //量比倒排输出
-
 }
 
-//保存数据
+//每日数据采集 闭市后执行
 func save_list() {
 	db, _ := Mydb()
-	nTime := time.Now()
-	yesTime := nTime.AddDate(0, 0, -1)
-	day := yesTime.Format("2006-01-02")
+	list_init()
+	//	nTime := time.Now()
+	//	yesTime := nTime.AddDate(0, 0, -1)
+	//	day := yesTime.Format("2006-01-02")
 
-	//day := time.Now().Format("2006-01-02")
+	day := time.Now().Format("2006-01-02")
 	//先删除
 	_, err := db.Exec("DELETE FROM `gu_day_history` WHERE `date` = '" + day + "'")
 	if err != nil {
@@ -296,7 +448,6 @@ func save_list() {
 	end := len(sql_str) - 1
 	in_sql := sql_str[0:end]
 
-	//fmt.Println(in_sql)
 	_, err = db.Exec(in_sql)
 	if err != nil {
 		fmt.Println(err)
