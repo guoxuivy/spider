@@ -28,6 +28,7 @@ var list_zzc map[string]string
 //初始化
 func init() {
 	list_zzc = make(map[string]string)
+	datalistmap = make(map[string]SinaData)
 }
 
 var _db *sql.DB
@@ -85,6 +86,9 @@ var haslb5 int
 
 //var datalist map[string]SinaData //无序map
 var datalist []SinaData //有序排列
+
+//总资产
+var datalistmap map[string]SinaData //datalist 主键映射
 
 type ListWrap struct {
 	datalist []SinaData
@@ -180,7 +184,14 @@ func catch_sina_list(ch chan string, page string) {
 		tmp.Volume = F64(row[12])
 		tmp.Amount = F64(row[13])
 		tmp.Ticktime = row[14].(string)
-		datalist = append(datalist, tmp)
+
+		if _, ok := datalistmap[code]; ok {
+			//存在
+		} else {
+			datalist = append(datalist, tmp)
+			datalistmap[code] = tmp
+		}
+
 	}
 	ch <- "ok:" + page
 
@@ -363,11 +374,11 @@ func LB_HX() {
 		if F64(map_zzc[row.Code]) > 200 {
 			continue
 		}
-		//涨幅在0~3之间
+		//涨幅在0~5之间
 		if row.Changepercent < 0 || row.Changepercent > 3 {
 			continue
 		}
-		//涨幅在0~3之间
+		//价格在0~20之间
 		if row.Trade > 20 {
 			continue
 		}
