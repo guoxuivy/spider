@@ -35,7 +35,7 @@ var _db *sql.DB
 
 /**
 接口整理
-和讯地址：http://quote.hexun.com/default.htm#stock
+和讯地址：
 和讯量比倒排地址：http://quote.tool.hexun.com/hqzx/quote.aspx?type=2&market=0&sorttype=12&updown=up&page=1&count=100
 返回结果：代码	名称	最新价	涨跌幅	昨收	今开	最高	最低	成交量	成交额	换手	振幅	量比
 腾讯个股详情 逗号分割 最后值为总资产
@@ -79,6 +79,7 @@ type SinaData struct {
 	LB5           float64 //前5天量比 平价每分钟的成交量
 	LB            float64 //量比 当前量/分钟 /LB5
 	ZZC           float64 //总资产
+	ZZF           float64 //昨日涨幅
 }
 
 //是否已经计算5日量比
@@ -194,7 +195,26 @@ func catch_sina_list(ch chan string, page string) {
 
 	}
 	ch <- "ok:" + page
+}
 
+//取昨日涨幅
+func catch_yesterday_zf(code_list []string) map[string]string {
+	db, _ := Mydb()
+	res, _ := _query(db, "SELECT `date` FROM `gu_day_history`  ORDER BY `id` DESC LIMIT 0,1")
+	day := res[len(res)-1]["date"]
+	//fmt.Println(day)
+	where := strings.Join(code_list, ",")
+	tmp, _ := _query(db, "SELECT `code`, `open`, `close` FROM `gu_day_history` WHERE `date`='"+day+"' AND `code` IN (0,"+where+")")
+
+	list_zf := make(map[string]string)
+	for _, row := range tmp {
+		code := row["code"]
+		open := F64(row["open"])
+		clos := F64(row["close"])
+		zf := (clos - open) / open * 100
+		list_zf[code] = fmt.Sprintf("%.2f", zf)
+	}
+	return list_zf
 }
 
 //抓取总资产数据
@@ -218,7 +238,7 @@ func catch_zzc(code_list []string) map[string]string {
 	str = str[0 : len(str)-2]
 	res_arr := strings.Split(str, ";")
 
-	//list_zzc := make(map[string]string)
+	//list_zzc := make(map[string]string)8
 	for _, row := range res_arr {
 		row_arr := strings.Split(row, "~")
 		zzc := strings.Split(row_arr[9], "\"")
@@ -319,6 +339,7 @@ func datalist_append(data SinaData) {
 
 //和讯量比选股
 func LB_HX() {
+
 	url := `http://quote.tool.hexun.com/hqzx/quote.aspx?type=2&market=0&sorttype=12&updown=up&page=1&count=100`
 	resp, err := http.Get(url)
 	checkerr(err)
@@ -359,14 +380,19 @@ func LB_HX() {
 		datalist_append(tmp)
 		code_list = append(code_list, code)
 	}
+
+	//昨日涨幅
+	map_zzf := catch_yesterday_zf(code_list)
+	//fmt.Println(zf_arr)
 	//总资产数据添加 过滤
 	map_zzc := catch_zzc(code_list)
 	for k, row := range datalist {
+		_zzf := F64(map_zzf[row.Code])
 		_zzc := F64(map_zzc[row.Code])
 		if datalist[k].ZZC == 0 && _zzc > 0 {
 			datalist[k].ZZC = _zzc
 		}
-
+		datalist[k].ZZF = _zzf
 	}
 	var tmp []SinaData
 	for _, row := range datalist {
@@ -388,9 +414,9 @@ func LB_HX() {
 
 	//结果输出
 	order_by("2") //量比倒排输出
-	fmt.Println("代码|", "当前价|", "涨幅|", "量比|", "总资产")
+	fmt.Println("代码|", "当前价|", "涨幅|", "昨日涨幅|", "量比|", "总资产")
 	for _, row := range datalist {
-		fmt.Println(row.Code, row.Trade, row.Changepercent, row.LB, row.ZZC)
+		fmt.Println(row.Code, " - ", row.Trade, " - ", row.Changepercent, "[", row.ZZF, "] -", row.LB, " - ", row.ZZC)
 	}
 
 }
